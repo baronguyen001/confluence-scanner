@@ -1,0 +1,11 @@
+# Placeholder weights. Tune on your own walk-forward validation.
+symbols:
+  - BTCUSDT
+  - ETHUSDT
+  - SOLUSDT
+timeframe: 4h
+weights:
+  ta: 0.40
+  fa: 0.20
+  cex: 0.20
+  onchain: 0.20

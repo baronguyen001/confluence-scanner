@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "confluence-scanner"
+version = "0.1.0"
+description = "Walk-forward-first crypto signal framework."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "barobaonguyen" }]
+keywords = ["crypto", "signals", "backtesting", "walk-forward", "telegram"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Office/Business :: Financial :: Investment",
+]
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "python-dotenv>=1.0",
+  "pyyaml>=6.0",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+ai = ["google-generativeai>=0.8"]
+viz = ["matplotlib>=3.7"]
+dev = [
+  "ipykernel",
+  "mypy",
+  "nbstripout",
+  "papermill",
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "types-PyYAML",
+]
+
+[project.scripts]
+confscan = "confscan.cli:main"
+cscan = "confscan.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/barobaonguyen/confluence-scanner"
+Repository = "https://github.com/barobaonguyen/confluence-scanner"
+Issues = "https://github.com/barobaonguyen/confluence-scanner/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/confscan"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["confscan"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
