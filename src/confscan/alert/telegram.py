@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from typing import Any, cast
 
 import requests
 
@@ -45,11 +46,11 @@ class TelegramAlerter:
                 "disable_web_page_preview": True,
             }
             try:
-                response = requests.post(url, json=payload, timeout=20)
+                response = requests.post(url, json=cast(Any, payload), timeout=20)
                 if response.status_code == 429:
                     retry = response.json().get("parameters", {}).get("retry_after", 3)
                     time.sleep(min(float(retry) + 1.0, 30.0))
-                    response = requests.post(url, json=payload, timeout=20)
+                    response = requests.post(url, json=cast(Any, payload), timeout=20)
                 if not response.ok:
                     return False
             except requests.RequestException:
