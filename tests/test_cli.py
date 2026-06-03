@@ -47,9 +47,13 @@ def test_cli_schedule(capsys) -> None:
 def test_cli_backtest(monkeypatch, tmp_path, tiny_ohlcv, capsys) -> None:
     cfg = tmp_path / "config.yaml"
     cfg.write_text("symbols: [BTCUSDT]\ntimeframe: 4h\n", encoding="utf-8")
+    html = tmp_path / "report.html"
     monkeypatch.setattr(cli.binance, "klines", lambda *a, **k: tiny_ohlcv)
-    assert cli.main(["backtest", "--config", str(cfg), "--fee-bps", "0"]) == 0
-    assert "BTCUSDT" in capsys.readouterr().out
+    assert cli.main(["backtest", "--config", str(cfg), "--fee-bps", "0", "--html", str(html)]) == 0
+    out = capsys.readouterr().out
+    assert "BTCUSDT" in out
+    assert "HTML report" in out
+    assert "data:image/png;base64" in html.read_text(encoding="utf-8")
 
 
 def test_cli_walkforward(monkeypatch, tmp_path, sample_ohlcv, capsys) -> None:

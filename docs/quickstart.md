@@ -22,6 +22,8 @@ Backtest the same symbols:
 confscan backtest --config examples/btc_eth_solana/config.yaml --start 2024-01-01 --end 2025-01-01
 ```
 
+Add `--html reports/backtest.html` to write a self-contained report with an embedded equity curve PNG, metrics, and fold table.
+
 Run a rolling validation pass:
 
 ```bash

@@ -5,8 +5,23 @@ from __future__ import annotations
 import warnings
 from dataclasses import asdict, dataclass
 
-DEFAULT_WEIGHTS = {"ta": 0.40, "fa": 0.20, "cex": 0.20, "onchain": 0.20}
-FALLBACK_WEIGHTS = {"ta": 0.55, "fa": 0.25, "cex": 0.20, "onchain": 0.0}
+DEFAULT_WEIGHTS = {
+    "ta": 0.40,
+    "fa": 0.20,
+    "cex": 0.20,
+    "onchain": 0.20,
+    "adx": 0.0,
+    "atr": 0.0,
+}
+FALLBACK_WEIGHTS = {
+    "ta": 0.55,
+    "fa": 0.25,
+    "cex": 0.20,
+    "onchain": 0.0,
+    "adx": 0.0,
+    "atr": 0.0,
+}
+OPTIONAL_LAYERS = {"adx", "atr"}
 
 
 @dataclass
@@ -59,8 +74,13 @@ class ConfluenceScorer:
         weights: dict[str, float] | None = None,
         fallback_weights: dict[str, float] | None = None,
     ):
-        self.weights = dict(weights or DEFAULT_WEIGHTS)
-        self.fallback_weights = dict(fallback_weights or FALLBACK_WEIGHTS)
+        self.weights = dict(DEFAULT_WEIGHTS if weights is None else weights)
+        self.fallback_weights = dict(
+            FALLBACK_WEIGHTS if fallback_weights is None else fallback_weights
+        )
+        for name in OPTIONAL_LAYERS:
+            self.weights.setdefault(name, 0.0)
+            self.fallback_weights.setdefault(name, 0.0)
         for name, candidate in {
             "weights": self.weights,
             "fallback_weights": self.fallback_weights,
@@ -79,14 +99,17 @@ class ConfluenceScorer:
     ) -> ConfluenceResult:
         """Weighted 0..100 score with adaptive redistribution for absent layers."""
 
-        present = present or {name: True for name in layer_scores}
+        present = present or {}
         absent = {name for name, is_present in present.items() if not is_present}
         base_weights = self.fallback_weights if absent else self.weights
-        active_weights = {
-            name: weight
-            for name, weight in base_weights.items()
-            if present.get(name, True) or weight > 0
-        }
+        active_weights: dict[str, float] = {}
+        for name, weight in base_weights.items():
+            default_present = name in layer_scores if name in OPTIONAL_LAYERS else True
+            is_present = present.get(name, default_present)
+            if name in OPTIONAL_LAYERS and weight <= 0:
+                continue
+            if is_present or weight > 0:
+                active_weights[name] = weight
         for name in absent:
             if name in active_weights and self.fallback_weights.get(name, 0.0) <= 0:
                 active_weights[name] = 0.0
@@ -99,7 +122,10 @@ class ConfluenceScorer:
             raw = max(0.0, min(100.0, raw))
             contribution = raw * weight
             total += contribution
-            reasons = ["present"] if present.get(name, True) else ["absent; redistributed"]
+            default_present = name in layer_scores if name in OPTIONAL_LAYERS else True
+            reasons = (
+                ["present"] if present.get(name, default_present) else ["absent; redistributed"]
+            )
             layers.append(
                 LayerScore(
                     name=name,

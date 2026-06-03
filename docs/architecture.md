@@ -3,9 +3,9 @@
 `confluence-scanner` is a Trawlkit case study: the same automation loop applied to crypto signal research.
 
 ```text
-scrape                         score              AI (optional)       alert            schedule (optional)
-data/binance, coingecko,   ->   score/confluence -> commentary/gemini -> alert/telegram -> schedule/cron
-onchain free adapters           ConfluenceScorer    neutral narration    TelegramAlerter   emit_* configs
+scrape                         score              AI (optional)       alert                 schedule (optional)
+data/binance, coingecko,   ->   score/confluence -> commentary/gemini -> alert/*       ->   schedule/cron
+onchain free adapters           ConfluenceScorer    neutral narration    Telegram/Discord    emit_* configs
 ```
 
 The package keeps the workflow explicit:

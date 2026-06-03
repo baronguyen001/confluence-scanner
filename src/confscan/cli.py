@@ -11,9 +11,11 @@ from datetime import UTC, datetime
 
 import pandas as pd
 
+from confscan.alert.discord import DiscordAlerter
 from confscan.alert.telegram import TelegramAlerter
 from confscan.backtest.engine import run_backtest
 from confscan.backtest.metrics import Metrics
+from confscan.backtest.report import BacktestReportSection, write_html_report
 from confscan.backtest.walk_forward import classify_robustness, walk_forward_split
 from confscan.commentary.gemini import generate_commentary
 from confscan.config import Config, audit_config, load_config
@@ -48,12 +50,27 @@ def _print_scan_row(result) -> None:
     )
 
 
+def _alert_channels(cfg: Config) -> set[str]:
+    if cfg.alert_channel == "both":
+        return {"telegram", "discord"}
+    if cfg.alert_channel in {"telegram", "discord"}:
+        return {cfg.alert_channel}
+    return set()
+
+
+def _send_alerts(cfg: Config, result) -> None:
+    channels = _alert_channels(cfg)
+    if "telegram" in channels and cfg.telegram_bot_token and cfg.telegram_chat_id:
+        TelegramAlerter(cfg.telegram_bot_token, cfg.telegram_chat_id).send_confluence(result)
+    if "discord" in channels and cfg.discord_webhook_url:
+        DiscordAlerter(cfg.discord_webhook_url).send_confluence(result)
+
+
 def _scan_once(cfg: Config, *, commentary: bool = False) -> int:
     if not cfg.symbols:
         print("No symbols configured.")
         return 1
     scorer = ConfluenceScorer(weights=cfg.weights)
-    alerter = TelegramAlerter(cfg.telegram_bot_token or "", cfg.telegram_chat_id or "")
     print(f"{'SYMBOL':<10} {'TOTAL':>6} {'LABEL':<9} {'MODE':<8} LAYERS")
     for raw_symbol in cfg.symbols:
         symbol = _symbol_from_arg(raw_symbol)
@@ -81,8 +98,7 @@ def _scan_once(cfg: Config, *, commentary: bool = False) -> int:
             text = generate_commentary(result.to_dict())
             if text:
                 print(f"  commentary: {text}")
-        if cfg.telegram_bot_token and cfg.telegram_chat_id:
-            alerter.send_confluence(result)
+        _send_alerts(cfg, result)
     return 0
 
 
@@ -110,6 +126,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     start_ms = _date_ms(args.start)
     end_ms = _date_ms(args.end)
     rows = []
+    report_sections: list[BacktestReportSection] = []
     for raw_symbol in cfg.symbols:
         symbol = _symbol_from_arg(raw_symbol)
         df = binance.klines(symbol, cfg.timeframe, limit=3000, start_ms=start_ms, end_ms=end_ms)
@@ -128,9 +145,13 @@ def cmd_backtest(args: argparse.Namespace) -> int:
                 metrics.n_trades,
             )
         )
+        report_sections.append(BacktestReportSection(symbol=symbol, result=result, metrics=metrics))
     print(f"{'SYMBOL':<10} {'RETURN':>10} {'SHARPE':>8} {'MAX_DD':>9} {'TRADES':>7}")
     for symbol, ret, sharpe, max_dd, trades in rows:
         print(f"{symbol:<10} {ret:>10} {sharpe:>8.2f} {max_dd:>9.2%} {trades:>7}")
+    if args.html:
+        write_html_report(args.html, report_sections)
+        print(f"HTML report: {args.html}")
     return 0
 
 
@@ -246,6 +267,7 @@ def build_parser() -> argparse.ArgumentParser:
     backtest.add_argument("--start", default=None)
     backtest.add_argument("--end", default=None)
     backtest.add_argument("--fee-bps", type=float, default=10.0)
+    backtest.add_argument("--html", default=None, help="write an HTML backtest report")
     backtest.set_defaults(func=cmd_backtest)
 
     walk = sub.add_parser("walkforward", help="run generic walk-forward validation")

@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "confluence-scanner"
-version = "0.1.0"
+version = "0.2.0"
 description = "Walk-forward-first crypto signal framework."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "barobaonguyen" }]
-keywords = ["crypto", "signals", "backtesting", "walk-forward", "telegram"]
+keywords = ["crypto", "signals", "backtesting", "walk-forward", "alerts"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",

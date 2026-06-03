@@ -10,6 +10,17 @@ def ema(series: pd.Series, period: int) -> pd.Series:
     return series.astype(float).ewm(span=period, adjust=False).mean()
 
 
+def _true_range(df: pd.DataFrame) -> pd.Series:
+    high = df["high"].astype(float)
+    low = df["low"].astype(float)
+    close = df["close"].astype(float)
+    prev_close = close.shift(1)
+    return pd.concat(
+        [(high - low), (high - prev_close).abs(), (low - prev_close).abs()],
+        axis=1,
+    ).max(axis=1)
+
+
 def detect_cross(fast: pd.Series, slow: pd.Series) -> pd.Series:
     """Return +1 for bullish crosses, -1 for bearish crosses, and 0 otherwise."""
 
@@ -45,6 +56,8 @@ def ema_cross_signal(
     work["ema_fast"] = ema(work["close"], fast)
     work["ema_slow"] = ema(work["close"], slow)
     work["ema_trend"] = ema(work["close"], trend)
+    work["atr"] = atr(work, 14)
+    work["adx"] = adx(work, 14)
 
     i_last, i_prev = (-1, -2) if use_forming_bar else (-2, -3)
     last = work.iloc[i_last]
@@ -69,9 +82,9 @@ def ema_cross_signal(
     stretch = (float(last["close"]) - ema_fast) / ema_fast if ema_fast else 0.0
     stretch_ok = bool(stretch <= 0.25)
 
-    tr_window = (work["high"] - work["low"]).iloc[i_last - 14 : i_last]
-    tr = float(tr_window.mean()) if len(tr_window) else 0.0
-    atr_pct = tr / float(last["close"]) if float(last["close"]) else 0.0
+    atr_value = float(last["atr"]) if not pd.isna(last["atr"]) else 0.0
+    atr_pct = atr_value / float(last["close"]) if float(last["close"]) else 0.0
+    adx_value = float(last["adx"]) if not pd.isna(last["adx"]) else 0.0
 
     if use_forming_bar:
         entry_price = float(last["close"])
@@ -95,6 +108,8 @@ def ema_cross_signal(
         "entry_price": entry_price,
         "entry_time": pd.Timestamp(entry_time).isoformat(),
         "atr_pct": float(atr_pct),
+        "atr": atr_value,
+        "adx": adx_value,
         "ema_fast": ema_fast,
         "ema_slow": float(last["ema_slow"]),
         "ema_trend": float(last["ema_trend"]),
@@ -137,12 +152,37 @@ def bollinger_bands(
 
 
 def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    true_range = _true_range(df)
+    return true_range.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+
+
+def adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
     high = df["high"].astype(float)
     low = df["low"].astype(float)
-    close = df["close"].astype(float)
-    prev_close = close.shift(1)
-    true_range = pd.concat(
-        [(high - low), (high - prev_close).abs(), (low - prev_close).abs()],
-        axis=1,
-    ).max(axis=1)
-    return true_range.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = pd.Series(
+        np.where((up_move > down_move) & (up_move > 0), up_move, 0.0),
+        index=df.index,
+        dtype=float,
+    )
+    minus_dm = pd.Series(
+        np.where((down_move > up_move) & (down_move > 0), down_move, 0.0),
+        index=df.index,
+        dtype=float,
+    )
+
+    smoothed_atr = _true_range(df).ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+    plus_di = (
+        100
+        * plus_dm.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+        / smoothed_atr.replace(0, np.nan)
+    )
+    minus_di = (
+        100
+        * minus_dm.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+        / smoothed_atr.replace(0, np.nan)
+    )
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    return dx.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()

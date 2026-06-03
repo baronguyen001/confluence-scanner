@@ -17,6 +17,7 @@ This is a framework, bring your own thresholds. The example config uses placehol
 ```bash
 pip install -e .
 confscan scan --config examples/btc_eth_solana/config.yaml
+confscan backtest --config examples/btc_eth_solana/config.yaml --html reports/backtest.html
 confscan walkforward --config examples/btc_eth_solana/config.yaml
 ```
 
@@ -40,14 +41,41 @@ print(score.to_dict())
 
 ## What's In The Box
 
-- Pure-pandas TA: EMA, RSI, MACD, Bollinger Bands, ATR. No TA-Lib and no pandas-ta.
+- Pure-pandas TA: EMA, RSI, MACD, Bollinger Bands, ATR, and ADX. No TA-Lib and no pandas-ta.
 - Adaptive confluence scoring across TA, fundamentals, CEX flow, and on-chain layers.
+- Optional ADX/ATR confluence inputs with zero default weight, so shipped scoring behavior stays unchanged until you opt in.
 - Walk-forward splitting with a no-leakage assertion and robust/overfit labels.
 - Signal-driven long-only backtest engine with fees and optional stops supplied by the caller.
+- HTML backtest reports with an embedded equity curve PNG, metrics, and per-fold tables.
 - Public data adapters for Binance, CoinGecko, GeckoTerminal, and DefiLlama.
-- Telegram alerts with chunking and retry handling.
+- Telegram and Discord webhook alerts with chunking and retry handling.
 - Optional Gemini commentary that is neutral, generic, and never trading advice.
 - Scheduler emitters for cron, launchd, and Windows Task Scheduler.
+
+## Alerts
+
+Choose an alert route in config:
+
+```yaml
+alert:
+  channel: both  # telegram, discord, or both
+```
+
+Secrets stay in environment variables:
+
+```text
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+DISCORD_WEBHOOK_URL=your_discord_webhook_url
+```
+
+## HTML Reports
+
+```bash
+confscan backtest --config examples/btc_eth_solana/config.yaml --html reports/backtest.html
+```
+
+The report embeds a generated PNG equity curve and includes metrics plus a compact fold table for each configured symbol.
 
 ## Walk-Forward Demo
 
@@ -82,9 +110,9 @@ confscan scan --config examples/btc_eth_solana/config.yaml
 pytest --cov=confscan --cov-fail-under=75
 ```
 
-PyPI publishing is pending for v0.1. Until then, install from source.
+PyPI publishing is pending for v0.2. Until then, install from source.
 
-## Trawlkit Case Study
+## → Trawlkit
 
 `confluence-scanner` is one application of the same loop Trawlkit packages for automation work:
 

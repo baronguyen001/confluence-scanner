@@ -16,8 +16,10 @@ class Config:
     symbols: list[str] = field(default_factory=list)
     timeframe: str = "4h"
     weights: dict[str, float] | None = None
+    alert_channel: str = "telegram"
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    discord_webhook_url: str | None = None
     gemini_api_key: str | None = None
     coinglass_api_key: str | None = None
     nansen_api_key: str | None = None
@@ -34,6 +36,15 @@ def _as_float_weights(raw: Any) -> dict[str, float] | None:
         except (TypeError, ValueError):
             continue
     return out or None
+
+
+def _alert_channel(raw: dict[str, Any]) -> str:
+    alert = raw.get("alert", {})
+    channel = None
+    if isinstance(alert, dict):
+        channel = alert.get("channel")
+    channel = os.getenv("CONFSCAN_ALERT_CHANNEL") or channel or raw.get("alert_channel")
+    return str(channel or "telegram").strip().lower()
 
 
 def load_config(path: str = "config.yaml", env_path: str = ".env") -> Config:
@@ -61,8 +72,10 @@ def load_config(path: str = "config.yaml", env_path: str = ".env") -> Config:
         symbols=symbols,
         timeframe=str(raw.get("timeframe", "4h")),
         weights=_as_float_weights(raw.get("weights")),
+        alert_channel=_alert_channel(raw),
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or raw.get("telegram_bot_token"),
         telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or raw.get("telegram_chat_id"),
+        discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL"),
         gemini_api_key=os.getenv("GEMINI_API_KEY") or raw.get("gemini_api_key"),
         coinglass_api_key=os.getenv("COINGLASS_API_KEY") or raw.get("coinglass_api_key"),
         nansen_api_key=os.getenv("NANSEN_API_KEY") or raw.get("nansen_api_key"),
@@ -82,8 +95,12 @@ def audit_config(cfg: Config) -> list[str]:
         total = sum(cfg.weights.values())
         if abs(total - 1.0) > 0.01:
             warnings.append(f"Weights sum to {total:.3f}; they should be close to 1.0.")
+    if cfg.alert_channel not in {"telegram", "discord", "both"}:
+        warnings.append(f"Unsupported alert channel: {cfg.alert_channel}")
     if bool(cfg.telegram_bot_token) ^ bool(cfg.telegram_chat_id):
         warnings.append("Telegram is partially configured; set both token and chat id.")
+    if cfg.alert_channel in {"discord", "both"} and not cfg.discord_webhook_url:
+        warnings.append("Discord is selected; set DISCORD_WEBHOOK_URL in the environment.")
     if cfg.coinglass_api_key:
-        warnings.append("Coinglass key detected, but v0.1 does not use Coinglass by default.")
+        warnings.append("Coinglass key detected, but confscan does not use Coinglass by default.")
     return warnings

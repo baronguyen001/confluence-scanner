@@ -4,6 +4,8 @@ symbols:
   - ETHUSDT
   - SOLUSDT
 timeframe: 4h
+alert:
+  channel: telegram
 weights:
   ta: 0.40
   fa: 0.20

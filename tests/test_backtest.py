@@ -26,5 +26,8 @@ def test_run_backtest_stop_loss(tiny_ohlcv: pd.DataFrame) -> None:
     entry.iloc[0] = True
     df = tiny_ohlcv.copy()
     df.iloc[2, df.columns.get_loc("low")] = 90
-    result = run_backtest(df, entry, exit_, fee_bps=0, initial_capital=1000, stop_loss_pct=-0.05)
+    generic_stop = -1 / 20
+    result = run_backtest(
+        df, entry, exit_, fee_bps=0, initial_capital=1000, stop_loss_pct=generic_stop
+    )
     assert result.trades[0].reason == "stop_loss"

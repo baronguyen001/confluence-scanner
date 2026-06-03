@@ -2,7 +2,16 @@ from __future__ import annotations
 
 import pandas as pd
 
-from confscan.signals.ta import atr, bollinger_bands, detect_cross, ema, ema_cross_signal, macd, rsi
+from confscan.signals.ta import (
+    adx,
+    atr,
+    bollinger_bands,
+    detect_cross,
+    ema,
+    ema_cross_signal,
+    macd,
+    rsi,
+)
 
 
 def test_ema_matches_pandas() -> None:
@@ -35,3 +44,17 @@ def test_textbook_indicators_shape(sample_ohlcv: pd.DataFrame) -> None:
     assert (upper.dropna() >= middle.dropna()).all()
     assert (middle.dropna() >= lower.dropna()).all()
     assert atr(sample_ohlcv).dropna().gt(0).all()
+    adx_values = adx(sample_ohlcv).dropna()
+    assert len(adx_values) > 0
+    assert adx_values.between(0, 100).all()
+
+
+def test_atr_uses_true_range(tiny_ohlcv: pd.DataFrame) -> None:
+    values = atr(tiny_ohlcv, period=3)
+    assert round(float(values.iloc[2]), 6) == 2.555556
+
+
+def test_adx_returns_trend_strength(sample_ohlcv: pd.DataFrame) -> None:
+    values = adx(sample_ohlcv, period=14).dropna()
+    assert values.index.is_monotonic_increasing
+    assert values.between(0, 100).all()

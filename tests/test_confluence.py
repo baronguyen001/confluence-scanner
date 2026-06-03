@@ -12,6 +12,7 @@ def test_confluence_full_weights() -> None:
     assert result.weight_mode == "full"
     assert result.label == "MODERATE"
     assert result.to_dict()["layers"][0]["name"] == "ta"
+    assert [layer.name for layer in result.layers] == ["ta", "fa", "cex", "onchain"]
 
 
 def test_confluence_redistributes_absent_onchain() -> None:
@@ -38,3 +39,16 @@ def test_example_ta_score_is_generic() -> None:
     )
     assert score == 90
     assert "bullish_cross" in reasons
+
+
+def test_optional_adx_atr_layers_are_weight_configurable() -> None:
+    result = ConfluenceScorer(
+        weights={"ta": 0.35, "fa": 0.20, "cex": 0.20, "onchain": 0.15, "adx": 0.05, "atr": 0.05}
+    ).score(
+        "BTCUSDT",
+        {"ta": 80, "fa": 60, "cex": 50, "onchain": 40, "adx": 30, "atr": 70},
+    )
+    layers = {layer.name: layer for layer in result.layers}
+    assert layers["adx"].weight == 0.05
+    assert layers["atr"].weight == 0.05
+    assert result.total == 61.0

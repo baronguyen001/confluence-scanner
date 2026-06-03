@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.0 - 2026-06-03
+
+- Added Discord webhook alerts and `alert.channel` routing for Telegram, Discord, or both.
+- Added HTML backtest reports with embedded equity curve PNGs, metrics, and per-fold tables via `confscan backtest --html`.
+- Added pure-pandas ADX and exposed ADX/ATR as optional confluence layers with zero default weight.
+- Kept public scoring defaults generic; no production tuning, thresholds, or secrets are included.
+
 ## v0.1.0 - 2026-05-31
 
 - Initial public MIT release of `confluence-scanner`.
