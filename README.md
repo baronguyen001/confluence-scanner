@@ -44,10 +44,13 @@ print(score.to_dict())
 - Pure-pandas TA: EMA, RSI, MACD, Bollinger Bands, ATR, and ADX. No TA-Lib and no pandas-ta.
 - Adaptive confluence scoring across TA, fundamentals, CEX flow, and on-chain layers.
 - Optional ADX/ATR confluence inputs with zero default weight, so shipped scoring behavior stays unchanged until you opt in.
+- Two independent funding-rate sources (Binance and Bybit) selectable via config, so a single venue outage does not blank the CEX layer.
 - Walk-forward splitting with a no-leakage assertion and robust/overfit labels.
 - Signal-driven long-only backtest engine with fees and optional stops supplied by the caller.
+- Per-regime backtest metrics (bull/bear/chop) in the table and HTML report via `--by-regime`.
 - HTML backtest reports with an embedded equity curve PNG, metrics, and per-fold tables.
-- Public data adapters for Binance, CoinGecko, GeckoTerminal, and DefiLlama.
+- A single static HTML dashboard aggregating the latest scan and recent backtest reports.
+- Public data adapters for Binance, Bybit, CoinGecko, GeckoTerminal, and DefiLlama.
 - Telegram and Discord webhook alerts with chunking and retry handling.
 - Optional Gemini commentary that is neutral, generic, and never trading advice.
 - Scheduler emitters for cron, launchd, and Windows Task Scheduler.
@@ -76,6 +79,37 @@ confscan backtest --config examples/btc_eth_solana/config.yaml --html reports/ba
 ```
 
 The report embeds a generated PNG equity curve and includes metrics plus a compact fold table for each configured symbol.
+
+## Funding Source
+
+The CEX funding sub-score can read from Binance, Bybit, or an average of both. The default is `binance`, so shipped behavior is unchanged. Both sources normalize to the same `['fundingRate']` frame, so picking a source is a one-line config change:
+
+```yaml
+data:
+  funding_source: both  # binance (default), bybit, or both
+```
+
+`both` averages overlapping timestamps and falls back to whichever venue returned data, which smooths over a single exchange's outage. You can also set `CONFSCAN_FUNDING_SOURCE` in the environment.
+
+## Regime Split
+
+Slice backtest metrics by market regime to see where an idea actually works instead of trusting one blended number:
+
+```bash
+confscan backtest --config examples/btc_eth_solana/config.yaml --by-regime --html reports/backtest.html
+```
+
+Each bar is labelled `bull`, `bear`, or `chop` from a simple, generic trend/volatility rule (a trend-EMA slope compared against a volatility band). The console table and the HTML report then show Sharpe, CAGR, max drawdown, and win rate per regime. The rule is intentionally generic, not a tuned production filter.
+
+## Dashboard
+
+Render a single self-contained HTML page (no JavaScript) that aggregates the latest scan output and links to the most recent backtest reports:
+
+```bash
+confscan dashboard --config examples/btc_eth_solana/config.yaml --out dashboard.html --reports-dir reports
+```
+
+The dashboard is a static file you can open directly or host anywhere. It discovers recent `*.html` reports in `--reports-dir` and links to them relative to the dashboard's own location.
 
 ## Walk-Forward Demo
 

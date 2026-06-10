@@ -8,6 +8,7 @@ import platform
 import sys
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pandas as pd
 
@@ -15,10 +16,21 @@ from confscan.alert.discord import DiscordAlerter
 from confscan.alert.telegram import TelegramAlerter
 from confscan.backtest.engine import run_backtest
 from confscan.backtest.metrics import Metrics
-from confscan.backtest.report import BacktestReportSection, write_html_report
+from confscan.backtest.regime import classify_regimes, metrics_by_regime
+from confscan.backtest.report import (
+    BacktestReportSection,
+    RegimeReportRow,
+    write_html_report,
+)
 from confscan.backtest.walk_forward import classify_robustness, walk_forward_split
 from confscan.commentary.gemini import generate_commentary
 from confscan.config import Config, audit_config, load_config
+from confscan.dashboard import (
+    DashboardData,
+    ScanRow,
+    find_report_links,
+    write_dashboard,
+)
 from confscan.data import binance
 from confscan.data.http import get_json
 from confscan.schedule.cron import emit_cron, emit_launchd, emit_windows_task
@@ -66,6 +78,29 @@ def _send_alerts(cfg: Config, result) -> None:
         DiscordAlerter(cfg.discord_webhook_url).send_confluence(result)
 
 
+def _score_symbol(scorer: ConfluenceScorer, cfg: Config, symbol: str):
+    """Score one symbol from live public data. Returns None when no data is available."""
+
+    df = binance.klines(symbol, cfg.timeframe, limit=500)
+    if df.empty:
+        return None
+    features = ema_cross_signal(df, fast=12, slow=26, trend=100)
+    ta_score, _ = example_ta_score(features)
+    recent_change = (
+        (df["close"].iloc[-1] / df["close"].iloc[-10] - 1.0) * 100 if len(df) >= 10 else 0.0
+    )
+    medium_change = (
+        (df["close"].iloc[-1] / df["close"].iloc[-40] - 1.0) * 100 if len(df) >= 40 else 0.0
+    )
+    fa_score = example_momentum_score(float(recent_change), float(medium_change))
+    cex_score = funding_score(symbol, source=cfg.funding_source) * 100.0
+    return scorer.score(
+        symbol,
+        {"ta": ta_score, "fa": fa_score, "cex": cex_score, "onchain": 0.0},
+        present={"ta": True, "fa": True, "cex": True, "onchain": False},
+    )
+
+
 def _scan_once(cfg: Config, *, commentary: bool = False) -> int:
     if not cfg.symbols:
         print("No symbols configured.")
@@ -74,25 +109,10 @@ def _scan_once(cfg: Config, *, commentary: bool = False) -> int:
     print(f"{'SYMBOL':<10} {'TOTAL':>6} {'LABEL':<9} {'MODE':<8} LAYERS")
     for raw_symbol in cfg.symbols:
         symbol = _symbol_from_arg(raw_symbol)
-        df = binance.klines(symbol, cfg.timeframe, limit=500)
-        if df.empty:
+        result = _score_symbol(scorer, cfg, symbol)
+        if result is None:
             print(f"{symbol:<10} {'n/a':>6} {'NO_DATA':<9} {'-':<8} public kline fetch failed")
             continue
-        features = ema_cross_signal(df, fast=12, slow=26, trend=100)
-        ta_score, _ = example_ta_score(features)
-        recent_change = (
-            (df["close"].iloc[-1] / df["close"].iloc[-10] - 1.0) * 100 if len(df) >= 10 else 0.0
-        )
-        medium_change = (
-            (df["close"].iloc[-1] / df["close"].iloc[-40] - 1.0) * 100 if len(df) >= 40 else 0.0
-        )
-        fa_score = example_momentum_score(float(recent_change), float(medium_change))
-        cex_score = funding_score(symbol) * 100.0
-        result = scorer.score(
-            symbol,
-            {"ta": ta_score, "fa": fa_score, "cex": cex_score, "onchain": 0.0},
-            present={"ta": True, "fa": True, "cex": True, "onchain": False},
-        )
         _print_scan_row(result)
         if commentary:
             text = generate_commentary(result.to_dict())
@@ -125,7 +145,9 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     cfg = load_config(_config_path(args))
     start_ms = _date_ms(args.start)
     end_ms = _date_ms(args.end)
+    by_regime = bool(getattr(args, "by_regime", False))
     rows = []
+    regime_lines: list[str] = []
     report_sections: list[BacktestReportSection] = []
     for raw_symbol in cfg.symbols:
         symbol = _symbol_from_arg(raw_symbol)
@@ -145,10 +167,43 @@ def cmd_backtest(args: argparse.Namespace) -> int:
                 metrics.n_trades,
             )
         )
-        report_sections.append(BacktestReportSection(symbol=symbol, result=result, metrics=metrics))
+        regime_rows: tuple[RegimeReportRow, ...] = ()
+        if by_regime:
+            regimes = classify_regimes(df, trend=100)
+            breakdown = metrics_by_regime(result.returns, regimes, freq=cfg.timeframe)
+            regime_rows = tuple(
+                RegimeReportRow(
+                    regime=item.regime,
+                    n_periods=item.n_periods,
+                    share=item.share,
+                    sharpe=item.metrics.sharpe,
+                    cagr=item.metrics.cagr,
+                    max_drawdown=item.metrics.max_drawdown,
+                    win_rate=item.metrics.win_rate,
+                )
+                for item in breakdown
+            )
+            for item in breakdown:
+                regime_lines.append(
+                    f"  {symbol:<10} {item.regime:<5} bars={item.n_periods:<5} "
+                    f"share={item.share:>6.2%} sharpe={item.metrics.sharpe:>6.2f} "
+                    f"max_dd={item.metrics.max_drawdown:>8.2%}"
+                )
+        report_sections.append(
+            BacktestReportSection(
+                symbol=symbol, result=result, metrics=metrics, regimes=regime_rows
+            )
+        )
     print(f"{'SYMBOL':<10} {'RETURN':>10} {'SHARPE':>8} {'MAX_DD':>9} {'TRADES':>7}")
     for symbol, ret, sharpe, max_dd, trades in rows:
         print(f"{symbol:<10} {ret:>10} {sharpe:>8.2f} {max_dd:>9.2%} {trades:>7}")
+    if by_regime:
+        print("\nby regime (bull/bear/chop):")
+        if regime_lines:
+            for line in regime_lines:
+                print(line)
+        else:
+            print("  no regime slices (no data)")
     if args.html:
         write_html_report(args.html, report_sections)
         print(f"HTML report: {args.html}")
@@ -252,6 +307,39 @@ def cmd_schedule(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    cfg = load_config(_config_path(args))
+    out_path = Path(args.out)
+    scan_rows: list[ScanRow] = []
+    if cfg.symbols:
+        scorer = ConfluenceScorer(weights=cfg.weights)
+        for raw_symbol in cfg.symbols:
+            symbol = _symbol_from_arg(raw_symbol)
+            result = _score_symbol(scorer, cfg, symbol)
+            if result is None:
+                continue
+            layers = " ".join(f"{layer.name}={layer.raw:.1f}" for layer in result.layers)
+            scan_rows.append(
+                ScanRow(
+                    symbol=result.symbol,
+                    total=result.total,
+                    label=result.label,
+                    weight_mode=result.weight_mode,
+                    layers=layers,
+                )
+            )
+    report_links = find_report_links(args.reports_dir, base=out_path.parent)
+    data = DashboardData(
+        scan_rows=scan_rows,
+        report_links=report_links,
+        funding_source=cfg.funding_source,
+        timeframe=cfg.timeframe,
+    )
+    written = write_dashboard(out_path, data)
+    print(f"Dashboard: {written}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="confscan")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -268,6 +356,11 @@ def build_parser() -> argparse.ArgumentParser:
     backtest.add_argument("--end", default=None)
     backtest.add_argument("--fee-bps", type=float, default=10.0)
     backtest.add_argument("--html", default=None, help="write an HTML backtest report")
+    backtest.add_argument(
+        "--by-regime",
+        action="store_true",
+        help="split metrics by bull/bear/chop market regime",
+    )
     backtest.set_defaults(func=cmd_backtest)
 
     walk = sub.add_parser("walkforward", help="run generic walk-forward validation")
@@ -287,6 +380,18 @@ def build_parser() -> argparse.ArgumentParser:
     schedule.add_argument("--at", default="09:00")
     schedule.add_argument("--os", choices=["win", "linux", "mac"], default=None)
     schedule.set_defaults(func=cmd_schedule)
+
+    dashboard = sub.add_parser(
+        "dashboard", help="render a static HTML dashboard from the latest scan and reports"
+    )
+    dashboard.add_argument("--config", default="config.yaml")
+    dashboard.add_argument("--out", default="dashboard.html")
+    dashboard.add_argument(
+        "--reports-dir",
+        default="reports",
+        help="directory scanned for recent backtest HTML reports",
+    )
+    dashboard.set_defaults(func=cmd_dashboard)
     return parser
 
 

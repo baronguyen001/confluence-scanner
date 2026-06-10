@@ -3,6 +3,7 @@
 The default adapters are free-first:
 
 - Binance spot klines and futures public endpoints.
+- Bybit public funding history (a second funding-rate source; select with `data.funding_source`).
 - CoinGecko market-cap universe data.
 - GeckoTerminal pool search.
 - DefiLlama protocol TVL.

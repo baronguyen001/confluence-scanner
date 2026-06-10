@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.0 - 2026-06-10
+
+- Added a second public funding-rate source (Bybit) normalized to the Binance funding-frame shape, with `data.funding_source = binance | bybit | both` selection (default `binance`, behavior unchanged) and a `both` mode that averages overlapping timestamps.
+- Added generic bull/bear/chop regime classification and per-regime backtest metrics, surfaced in the console table and HTML report via `confscan backtest --by-regime`.
+- Added `confscan dashboard --out dashboard.html`, a single self-contained, JavaScript-free HTML page aggregating the latest scan output and links to recent backtest reports.
+- Kept public scoring defaults generic; the new regime rule and funding source add no production tuning, thresholds, or secrets.
+
 ## v0.2.0 - 2026-06-03
 
 - Added Discord webhook alerts and `alert.channel` routing for Telegram, Discord, or both.

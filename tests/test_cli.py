@@ -21,7 +21,7 @@ def test_cli_scan_prints_table(monkeypatch, tmp_path, capsys) -> None:
         dtype=float,
     )
     monkeypatch.setattr(cli.binance, "klines", lambda *a, **k: df)
-    monkeypatch.setattr("confscan.cli.funding_score", lambda symbol: 0.5)
+    monkeypatch.setattr("confscan.cli.funding_score", lambda symbol, source="binance": 0.5)
     assert cli.main(["scan", "--config", str(cfg)]) == 0
     out = capsys.readouterr().out
     assert "BTCUSDT" in out
@@ -54,6 +54,77 @@ def test_cli_backtest(monkeypatch, tmp_path, tiny_ohlcv, capsys) -> None:
     assert "BTCUSDT" in out
     assert "HTML report" in out
     assert "data:image/png;base64" in html.read_text(encoding="utf-8")
+
+
+def test_cli_backtest_by_regime(monkeypatch, tmp_path, sample_ohlcv, capsys) -> None:
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("symbols: [BTCUSDT]\ntimeframe: 4h\n", encoding="utf-8")
+    html = tmp_path / "report.html"
+    monkeypatch.setattr(cli.binance, "klines", lambda *a, **k: sample_ohlcv)
+    assert (
+        cli.main(
+            [
+                "backtest",
+                "--config",
+                str(cfg),
+                "--fee-bps",
+                "0",
+                "--by-regime",
+                "--html",
+                str(html),
+            ]
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "by regime" in out
+    report = html.read_text(encoding="utf-8")
+    assert "By regime" in report
+
+
+def test_cli_dashboard(monkeypatch, tmp_path, capsys) -> None:
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("symbols: [BTCUSDT]\ntimeframe: 4h\n", encoding="utf-8")
+    idx = pd.date_range("2024-01-01", periods=140, freq="4h", tz="UTC")
+    df = pd.DataFrame(
+        {
+            "open": range(140),
+            "high": [v + 2 for v in range(140)],
+            "low": [v - 1 for v in range(140)],
+            "close": range(140),
+            "volume": [100] * 140,
+        },
+        index=idx,
+        dtype=float,
+    )
+    monkeypatch.setattr(cli.binance, "klines", lambda *a, **k: df)
+    monkeypatch.setattr("confscan.cli.funding_score", lambda symbol, source="binance": 0.5)
+
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    (reports / "backtest.html").write_text("<html></html>", encoding="utf-8")
+    out = tmp_path / "dashboard.html"
+
+    assert (
+        cli.main(
+            [
+                "dashboard",
+                "--config",
+                str(cfg),
+                "--out",
+                str(out),
+                "--reports-dir",
+                str(reports),
+            ]
+        )
+        == 0
+    )
+    printed = capsys.readouterr().out
+    assert "Dashboard:" in printed
+    page = out.read_text(encoding="utf-8")
+    assert page.startswith("<!doctype html>")
+    assert "BTCUSDT" in page
+    assert "backtest.html" in page
 
 
 def test_cli_walkforward(monkeypatch, tmp_path, sample_ohlcv, capsys) -> None:

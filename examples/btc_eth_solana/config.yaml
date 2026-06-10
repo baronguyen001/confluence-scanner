@@ -6,6 +6,8 @@ symbols:
 timeframe: 4h
 alert:
   channel: telegram
+data:
+  funding_source: binance  # binance (default), bybit, or both
 weights:
   ta: 0.40
   fa: 0.20

@@ -31,11 +31,23 @@ class FoldReportRow:
 
 
 @dataclass(frozen=True)
+class RegimeReportRow:
+    regime: str
+    n_periods: int
+    share: float
+    sharpe: float
+    cagr: float
+    max_drawdown: float
+    win_rate: float
+
+
+@dataclass(frozen=True)
 class BacktestReportSection:
     symbol: str
     result: BacktestResult
     metrics: Metrics
     folds: tuple[FoldReportRow, ...] = ()
+    regimes: tuple[RegimeReportRow, ...] = ()
 
 
 def _png_chunk(name: bytes, data: bytes) -> bytes:
@@ -214,9 +226,37 @@ def _fold_table(rows: Sequence[FoldReportRow]) -> str:
     )
 
 
+def _regime_table(rows: Sequence[RegimeReportRow]) -> str:
+    body = "\n".join(
+        "<tr>"
+        f"<td>{html.escape(row.regime)}</td>"
+        f"<td>{row.n_periods}</td>"
+        f"<td>{_fmt_pct(row.share)}</td>"
+        f"<td>{_fmt_num(row.sharpe)}</td>"
+        f"<td>{_fmt_pct(row.cagr)}</td>"
+        f"<td>{_fmt_pct(row.max_drawdown)}</td>"
+        f"<td>{_fmt_pct(row.win_rate)}</td>"
+        "</tr>"
+        for row in rows
+    )
+    return (
+        '<table class="regimes">'
+        "<thead><tr><th>Regime</th><th>Bars</th><th>Share</th><th>Sharpe</th>"
+        "<th>CAGR</th><th>Max DD</th><th>Win rate</th></tr></thead>"
+        f"<tbody>{body}</tbody></table>"
+    )
+
+
 def _section_html(section: BacktestReportSection) -> str:
     png = base64.b64encode(_equity_png(section.result.equity_curve)).decode("ascii")
     folds = section.folds or (_default_fold(section.symbol, section.result, section.metrics),)
+    regime_block = (
+        f"""
+  <h3>By regime</h3>
+  {_regime_table(section.regimes)}"""
+        if section.regimes
+        else ""
+    )
     return f"""
 <section>
   <h2>{html.escape(section.symbol)}</h2>
@@ -224,7 +264,7 @@ def _section_html(section: BacktestReportSection) -> str:
   <div class="tables">
     {_metric_table(section.result, section.metrics)}
     {_fold_table(folds)}
-  </div>
+  </div>{regime_block}
 </section>
 """.strip()
 
@@ -263,6 +303,7 @@ def render_html_document(
     body {{ font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 32px; color: #17202a; }}
     h1 {{ font-size: 28px; margin: 0 0 24px; }}
     h2 {{ font-size: 20px; margin: 28px 0 12px; }}
+    h3 {{ font-size: 16px; margin: 20px 0 8px; color: #45526a; }}
     .equity {{ width: 100%; max-width: 900px; height: auto; border: 1px solid #d7dde5; }}
     .tables {{ display: grid; grid-template-columns: minmax(220px, 320px) minmax(360px, 1fr); gap: 24px; margin-top: 16px; }}
     table {{ border-collapse: collapse; width: 100%; font-size: 14px; }}

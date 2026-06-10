@@ -39,3 +39,25 @@ def test_load_config_alert_channel_and_discord_env(tmp_path, monkeypatch) -> Non
 def test_audit_config_warns_for_selected_discord_without_webhook() -> None:
     warnings = audit_config(Config(symbols=["BTCUSDT"], alert_channel="discord"))
     assert any("Discord" in warning for warning in warnings)
+
+
+def test_funding_source_default_and_selection(tmp_path, monkeypatch) -> None:
+    default_cfg_path = tmp_path / "config.yaml"
+    default_cfg_path.write_text("symbols: [btc]\n", encoding="utf-8")
+    default_cfg = load_config(str(default_cfg_path), env_path=str(tmp_path / ".env"))
+    assert default_cfg.funding_source == "binance"
+
+    cfg_path = tmp_path / "config2.yaml"
+    cfg_path.write_text("symbols: [btc]\ndata:\n  funding_source: both\n", encoding="utf-8")
+    cfg = load_config(str(cfg_path), env_path=str(tmp_path / ".env"))
+    assert cfg.funding_source == "both"
+    assert not any("funding source" in warning for warning in audit_config(cfg))
+
+    monkeypatch.setenv("CONFSCAN_FUNDING_SOURCE", "bybit")
+    env_cfg = load_config(str(default_cfg_path), env_path=str(tmp_path / ".env"))
+    assert env_cfg.funding_source == "bybit"
+
+
+def test_audit_config_warns_for_bad_funding_source() -> None:
+    warnings = audit_config(Config(symbols=["BTCUSDT"], funding_source="kraken"))
+    assert any("funding source" in warning for warning in warnings)

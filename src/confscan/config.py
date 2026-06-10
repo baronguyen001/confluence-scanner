@@ -17,6 +17,7 @@ class Config:
     timeframe: str = "4h"
     weights: dict[str, float] | None = None
     alert_channel: str = "telegram"
+    funding_source: str = "binance"
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     discord_webhook_url: str | None = None
@@ -47,6 +48,15 @@ def _alert_channel(raw: dict[str, Any]) -> str:
     return str(channel or "telegram").strip().lower()
 
 
+def _funding_source(raw: dict[str, Any]) -> str:
+    data = raw.get("data", {})
+    source = None
+    if isinstance(data, dict):
+        source = data.get("funding_source")
+    source = os.getenv("CONFSCAN_FUNDING_SOURCE") or source or raw.get("funding_source")
+    return str(source or "binance").strip().lower()
+
+
 def load_config(path: str = "config.yaml", env_path: str = ".env") -> Config:
     """Load YAML plus optional environment overrides.
 
@@ -73,6 +83,7 @@ def load_config(path: str = "config.yaml", env_path: str = ".env") -> Config:
         timeframe=str(raw.get("timeframe", "4h")),
         weights=_as_float_weights(raw.get("weights")),
         alert_channel=_alert_channel(raw),
+        funding_source=_funding_source(raw),
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or raw.get("telegram_bot_token"),
         telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or raw.get("telegram_chat_id"),
         discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL"),
@@ -97,6 +108,8 @@ def audit_config(cfg: Config) -> list[str]:
             warnings.append(f"Weights sum to {total:.3f}; they should be close to 1.0.")
     if cfg.alert_channel not in {"telegram", "discord", "both"}:
         warnings.append(f"Unsupported alert channel: {cfg.alert_channel}")
+    if cfg.funding_source not in {"binance", "bybit", "both"}:
+        warnings.append(f"Unsupported funding source: {cfg.funding_source}")
     if bool(cfg.telegram_bot_token) ^ bool(cfg.telegram_chat_id):
         warnings.append("Telegram is partially configured; set both token and chat id.")
     if cfg.alert_channel in {"discord", "both"} and not cfg.discord_webhook_url:
