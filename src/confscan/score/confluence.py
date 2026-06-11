@@ -12,6 +12,7 @@ DEFAULT_WEIGHTS = {
     "onchain": 0.20,
     "adx": 0.0,
     "atr": 0.0,
+    "orderflow": 0.0,
 }
 FALLBACK_WEIGHTS = {
     "ta": 0.55,
@@ -20,8 +21,9 @@ FALLBACK_WEIGHTS = {
     "onchain": 0.0,
     "adx": 0.0,
     "atr": 0.0,
+    "orderflow": 0.0,
 }
-OPTIONAL_LAYERS = {"adx", "atr"}
+OPTIONAL_LAYERS = {"adx", "atr", "orderflow"}
 
 
 @dataclass

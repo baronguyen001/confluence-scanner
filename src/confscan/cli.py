@@ -13,9 +13,11 @@ from pathlib import Path
 import pandas as pd
 
 from confscan.alert.discord import DiscordAlerter
+from confscan.alert.slack import SlackAlerter
 from confscan.alert.telegram import TelegramAlerter
 from confscan.backtest.engine import run_backtest
 from confscan.backtest.metrics import Metrics
+from confscan.backtest.montecarlo import run_monte_carlo
 from confscan.backtest.regime import classify_regimes, metrics_by_regime
 from confscan.backtest.report import (
     BacktestReportSection,
@@ -24,7 +26,7 @@ from confscan.backtest.report import (
 )
 from confscan.backtest.walk_forward import classify_robustness, walk_forward_split
 from confscan.commentary.gemini import generate_commentary
-from confscan.config import Config, audit_config, load_config
+from confscan.config import Config, alert_channels, audit_config, load_config
 from confscan.dashboard import (
     DashboardData,
     ScanRow,
@@ -36,6 +38,7 @@ from confscan.data.http import get_json
 from confscan.schedule.cron import emit_cron, emit_launchd, emit_windows_task
 from confscan.score.confluence import ConfluenceScorer, example_momentum_score, example_ta_score
 from confscan.signals.funding import funding_score
+from confscan.signals.orderflow import orderflow_score
 from confscan.signals.ta import detect_cross, ema, ema_cross_signal
 
 
@@ -63,11 +66,8 @@ def _print_scan_row(result) -> None:
 
 
 def _alert_channels(cfg: Config) -> set[str]:
-    if cfg.alert_channel == "both":
-        return {"telegram", "discord"}
-    if cfg.alert_channel in {"telegram", "discord"}:
-        return {cfg.alert_channel}
-    return set()
+    channels = alert_channels(cfg.alert_channel)
+    return channels & {"telegram", "discord", "slack"}
 
 
 def _send_alerts(cfg: Config, result) -> None:
@@ -76,6 +76,12 @@ def _send_alerts(cfg: Config, result) -> None:
         TelegramAlerter(cfg.telegram_bot_token, cfg.telegram_chat_id).send_confluence(result)
     if "discord" in channels and cfg.discord_webhook_url:
         DiscordAlerter(cfg.discord_webhook_url).send_confluence(result)
+    if "slack" in channels and cfg.slack_webhook_url:
+        SlackAlerter(cfg.slack_webhook_url).send_confluence(result)
+
+
+def _uses_orderflow(cfg: Config) -> bool:
+    return bool(cfg.weights and float(cfg.weights.get("orderflow", 0.0)) > 0.0)
 
 
 def _score_symbol(scorer: ConfluenceScorer, cfg: Config, symbol: str):
@@ -94,10 +100,15 @@ def _score_symbol(scorer: ConfluenceScorer, cfg: Config, symbol: str):
     )
     fa_score = example_momentum_score(float(recent_change), float(medium_change))
     cex_score = funding_score(symbol, source=cfg.funding_source) * 100.0
+    layer_scores = {"ta": ta_score, "fa": fa_score, "cex": cex_score, "onchain": 0.0}
+    present = {"ta": True, "fa": True, "cex": True, "onchain": False}
+    if _uses_orderflow(cfg):
+        layer_scores["orderflow"] = orderflow_score(symbol) * 100.0
+        present["orderflow"] = True
     return scorer.score(
         symbol,
-        {"ta": ta_score, "fa": fa_score, "cex": cex_score, "onchain": 0.0},
-        present={"ta": True, "fa": True, "cex": True, "onchain": False},
+        layer_scores,
+        present=present,
     )
 
 
@@ -158,6 +169,13 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         entry, exit_ = _signals_for_frame(df)
         result = run_backtest(df, entry, exit_, fee_bps=args.fee_bps)
         metrics = Metrics.from_result(result, freq=cfg.timeframe)
+        monte_carlo = None
+        if args.montecarlo:
+            monte_carlo = run_monte_carlo(
+                result,
+                simulations=args.montecarlo,
+                seed=args.montecarlo_seed,
+            )
         rows.append(
             (
                 symbol,
@@ -191,7 +209,11 @@ def cmd_backtest(args: argparse.Namespace) -> int:
                 )
         report_sections.append(
             BacktestReportSection(
-                symbol=symbol, result=result, metrics=metrics, regimes=regime_rows
+                symbol=symbol,
+                result=result,
+                metrics=metrics,
+                regimes=regime_rows,
+                monte_carlo=monte_carlo,
             )
         )
     print(f"{'SYMBOL':<10} {'RETURN':>10} {'SHARPE':>8} {'MAX_DD':>9} {'TRADES':>7}")
@@ -204,6 +226,9 @@ def cmd_backtest(args: argparse.Namespace) -> int:
                 print(line)
         else:
             print("  no regime slices (no data)")
+    if args.montecarlo:
+        seed_text = "none" if args.montecarlo_seed is None else str(args.montecarlo_seed)
+        print(f"\nmonte carlo: simulations={args.montecarlo} seed={seed_text}")
     if args.html:
         write_html_report(args.html, report_sections)
         print(f"HTML report: {args.html}")
@@ -356,6 +381,19 @@ def build_parser() -> argparse.ArgumentParser:
     backtest.add_argument("--end", default=None)
     backtest.add_argument("--fee-bps", type=float, default=10.0)
     backtest.add_argument("--html", default=None, help="write an HTML backtest report")
+    backtest.add_argument(
+        "--montecarlo",
+        type=int,
+        default=0,
+        metavar="N",
+        help="run N deterministic Monte Carlo robustness simulations",
+    )
+    backtest.add_argument(
+        "--montecarlo-seed",
+        type=int,
+        default=None,
+        help="seed for Monte Carlo robustness simulations",
+    )
     backtest.add_argument(
         "--by-regime",
         action="store_true",

@@ -13,3 +13,4 @@ weights:
   fa: 0.20
   cex: 0.20
   onchain: 0.20
+  orderflow: 0.00

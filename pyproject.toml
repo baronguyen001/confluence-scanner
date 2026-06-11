@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "confluence-scanner"
-version = "0.3.0"
+version = "0.4.0"
 description = "Walk-forward-first crypto signal framework."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -47,9 +47,9 @@ confscan = "confscan.cli:main"
 cscan = "confscan.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/barobaonguyen/confluence-scanner"
-Repository = "https://github.com/barobaonguyen/confluence-scanner"
-Issues = "https://github.com/barobaonguyen/confluence-scanner/issues"
+Homepage = "https://github.com/baronguyen001/confluence-scanner"
+Repository = "https://github.com/baronguyen001/confluence-scanner"
+Issues = "https://github.com/baronguyen001/confluence-scanner/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/confscan"]

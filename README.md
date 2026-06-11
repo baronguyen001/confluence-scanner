@@ -2,7 +2,7 @@
 
 Walk-forward-first crypto signal framework. Stop deploying overfit strategies.
 
-[![CI](https://github.com/barobaonguyen/confluence-scanner/actions/workflows/ci.yml/badge.svg)](https://github.com/barobaonguyen/confluence-scanner/actions/workflows/ci.yml)
+[![CI](https://github.com/baronguyen001/confluence-scanner/actions/workflows/ci.yml/badge.svg)](https://github.com/baronguyen001/confluence-scanner/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg)](pyproject.toml)
 
@@ -44,14 +44,16 @@ print(score.to_dict())
 - Pure-pandas TA: EMA, RSI, MACD, Bollinger Bands, ATR, and ADX. No TA-Lib and no pandas-ta.
 - Adaptive confluence scoring across TA, fundamentals, CEX flow, and on-chain layers.
 - Optional ADX/ATR confluence inputs with zero default weight, so shipped scoring behavior stays unchanged until you opt in.
+- Optional public order-flow confluence input for open interest, long/short ratio, and liquidation balance. It ships with zero default weight, so scoring behavior stays unchanged until you opt in.
 - Two independent funding-rate sources (Binance and Bybit) selectable via config, so a single venue outage does not blank the CEX layer.
 - Walk-forward splitting with a no-leakage assertion and robust/overfit labels.
 - Signal-driven long-only backtest engine with fees and optional stops supplied by the caller.
 - Per-regime backtest metrics (bull/bear/chop) in the table and HTML report via `--by-regime`.
+- Monte Carlo robustness checks for backtest results via trade-order shuffle and bootstrap simulation.
 - HTML backtest reports with an embedded equity curve PNG, metrics, and per-fold tables.
 - A single static HTML dashboard aggregating the latest scan and recent backtest reports.
 - Public data adapters for Binance, Bybit, CoinGecko, GeckoTerminal, and DefiLlama.
-- Telegram and Discord webhook alerts with chunking and retry handling.
+- Telegram, Discord, and Slack webhook alerts with chunking and retry handling.
 - Optional Gemini commentary that is neutral, generic, and never trading advice.
 - Scheduler emitters for cron, launchd, and Windows Task Scheduler.
 
@@ -61,7 +63,7 @@ Choose an alert route in config:
 
 ```yaml
 alert:
-  channel: both  # telegram, discord, or both
+  channel: telegram+discord+slack
 ```
 
 Secrets stay in environment variables:
@@ -70,7 +72,10 @@ Secrets stay in environment variables:
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
 DISCORD_WEBHOOK_URL=your_discord_webhook_url
+SLACK_WEBHOOK_URL=your_slack_webhook_url
 ```
+
+`alert.channel` accepts `telegram`, `discord`, `slack`, legacy `both` for Telegram plus Discord, `all`, or combinations such as `telegram,slack`.
 
 ## HTML Reports
 
@@ -79,6 +84,29 @@ confscan backtest --config examples/btc_eth_solana/config.yaml --html reports/ba
 ```
 
 The report embeds a generated PNG equity curve and includes metrics plus a compact fold table for each configured symbol.
+
+Add Monte Carlo robustness simulation to include a confidence band and drawdown distribution table in the HTML report:
+
+```bash
+confscan backtest --config examples/btc_eth_solana/config.yaml --montecarlo 500 --montecarlo-seed 42 --html reports/backtest.html
+```
+
+The simulation shuffles observed trade returns and bootstraps sampled trade returns. It is a robustness diagnostic, not a tuned approval rule.
+
+## Order Flow Layer
+
+The optional order-flow layer reads free public Binance futures market data for open-interest history, top-account long/short ratio, and liquidation orders:
+
+```yaml
+weights:
+  ta: 0.40
+  fa: 0.20
+  cex: 0.20
+  onchain: 0.20
+  orderflow: 0.00
+```
+
+The default is `0.00`, so public scoring is unchanged. Set your own weight only after validating it in your own walk-forward process.
 
 ## Funding Source
 
@@ -146,7 +174,7 @@ pytest --cov=confscan --cov-fail-under=75
 
 PyPI publishing is pending for v0.2. Until then, install from source.
 
-## → Trawlkit
+## -> Trawlkit
 
 `confluence-scanner` is one application of the same loop Trawlkit packages for automation work:
 
@@ -154,6 +182,6 @@ PyPI publishing is pending for v0.2. Until then, install from source.
 scrape -> score -> AI -> alert -> schedule
 ```
 
-See [Trawlkit](https://github.com/barobaonguyen/trawlkit) for the reusable kit, and [ai-automation-skills](https://github.com/barobaonguyen/ai-automation-skills) for free companion material.
+See [Trawlkit](https://github.com/baronguyen001/trawlkit) for the reusable kit, and [ai-automation-skills](https://github.com/baronguyen001/ai-automation-skills) for free companion material.
 
 MIT licensed.

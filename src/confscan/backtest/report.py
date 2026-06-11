@@ -15,6 +15,7 @@ import pandas as pd
 
 from confscan.backtest.engine import BacktestResult
 from confscan.backtest.metrics import Metrics
+from confscan.backtest.montecarlo import MonteCarloResult
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
@@ -48,6 +49,7 @@ class BacktestReportSection:
     metrics: Metrics
     folds: tuple[FoldReportRow, ...] = ()
     regimes: tuple[RegimeReportRow, ...] = ()
+    monte_carlo: MonteCarloResult | None = None
 
 
 def _png_chunk(name: bytes, data: bytes) -> bytes:
@@ -247,6 +249,32 @@ def _regime_table(rows: Sequence[RegimeReportRow]) -> str:
     )
 
 
+def _monte_carlo_table(result: MonteCarloResult) -> str:
+    confidence = f"{result.confidence:.0%}"
+    body = "\n".join(
+        "<tr>"
+        f"<td>{html.escape(row.name)}</td>"
+        f"<td>{_fmt_pct(row.final_return_low)}</td>"
+        f"<td>{_fmt_pct(row.final_return_median)}</td>"
+        f"<td>{_fmt_pct(row.final_return_high)}</td>"
+        f"<td>{_fmt_pct(row.max_drawdown_low)}</td>"
+        f"<td>{_fmt_pct(row.max_drawdown_median)}</td>"
+        f"<td>{_fmt_pct(row.max_drawdown_high)}</td>"
+        "</tr>"
+        for row in result.methods
+    )
+    seed = "none" if result.seed is None else str(result.seed)
+    return (
+        f'<p class="note">{result.simulations} simulations, seed={html.escape(seed)}, '
+        f"{html.escape(confidence)} confidence band.</p>"
+        '<table class="montecarlo">'
+        "<thead><tr><th>Method</th><th>Return low</th><th>Return median</th>"
+        "<th>Return high</th><th>Max DD low</th><th>Max DD median</th>"
+        "<th>Max DD high</th></tr></thead>"
+        f"<tbody>{body}</tbody></table>"
+    )
+
+
 def _section_html(section: BacktestReportSection) -> str:
     png = base64.b64encode(_equity_png(section.result.equity_curve)).decode("ascii")
     folds = section.folds or (_default_fold(section.symbol, section.result, section.metrics),)
@@ -257,6 +285,13 @@ def _section_html(section: BacktestReportSection) -> str:
         if section.regimes
         else ""
     )
+    monte_carlo_block = (
+        f"""
+  <h3>Monte Carlo robustness</h3>
+  {_monte_carlo_table(section.monte_carlo)}"""
+        if section.monte_carlo
+        else ""
+    )
     return f"""
 <section>
   <h2>{html.escape(section.symbol)}</h2>
@@ -264,7 +299,7 @@ def _section_html(section: BacktestReportSection) -> str:
   <div class="tables">
     {_metric_table(section.result, section.metrics)}
     {_fold_table(folds)}
-  </div>{regime_block}
+  </div>{regime_block}{monte_carlo_block}
 </section>
 """.strip()
 
@@ -282,6 +317,7 @@ def render_html_report(
         result=result,
         metrics=metrics or Metrics.from_result(result),
         folds=tuple(folds or ()),
+        monte_carlo=None,
     )
     return render_html_document([section], title=title)
 
@@ -304,6 +340,7 @@ def render_html_document(
     h1 {{ font-size: 28px; margin: 0 0 24px; }}
     h2 {{ font-size: 20px; margin: 28px 0 12px; }}
     h3 {{ font-size: 16px; margin: 20px 0 8px; color: #45526a; }}
+    .note {{ color: #596579; font-size: 13px; margin: 0 0 8px; }}
     .equity {{ width: 100%; max-width: 900px; height: auto; border: 1px solid #d7dde5; }}
     .tables {{ display: grid; grid-template-columns: minmax(220px, 320px) minmax(360px, 1fr); gap: 24px; margin-top: 16px; }}
     table {{ border-collapse: collapse; width: 100%; font-size: 14px; }}

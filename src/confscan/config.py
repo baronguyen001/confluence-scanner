@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ class Config:
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     discord_webhook_url: str | None = None
+    slack_webhook_url: str | None = None
     gemini_api_key: str | None = None
     coinglass_api_key: str | None = None
     nansen_api_key: str | None = None
@@ -57,6 +59,18 @@ def _funding_source(raw: dict[str, Any]) -> str:
     return str(source or "binance").strip().lower()
 
 
+def alert_channels(value: str) -> set[str]:
+    """Parse legacy and combined alert channel values."""
+
+    raw = str(value or "telegram").strip().lower()
+    if raw == "both":
+        return {"telegram", "discord"}
+    if raw in {"all", "any"}:
+        return {"telegram", "discord", "slack"}
+    parts = {part for part in re.split(r"[\s,+|/]+", raw) if part}
+    return parts or {"telegram"}
+
+
 def load_config(path: str = "config.yaml", env_path: str = ".env") -> Config:
     """Load YAML plus optional environment overrides.
 
@@ -87,6 +101,7 @@ def load_config(path: str = "config.yaml", env_path: str = ".env") -> Config:
         telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or raw.get("telegram_bot_token"),
         telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or raw.get("telegram_chat_id"),
         discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL"),
+        slack_webhook_url=os.getenv("SLACK_WEBHOOK_URL"),
         gemini_api_key=os.getenv("GEMINI_API_KEY") or raw.get("gemini_api_key"),
         coinglass_api_key=os.getenv("COINGLASS_API_KEY") or raw.get("coinglass_api_key"),
         nansen_api_key=os.getenv("NANSEN_API_KEY") or raw.get("nansen_api_key"),
@@ -106,14 +121,18 @@ def audit_config(cfg: Config) -> list[str]:
         total = sum(cfg.weights.values())
         if abs(total - 1.0) > 0.01:
             warnings.append(f"Weights sum to {total:.3f}; they should be close to 1.0.")
-    if cfg.alert_channel not in {"telegram", "discord", "both"}:
+    channels = alert_channels(cfg.alert_channel)
+    unsupported = channels - {"telegram", "discord", "slack"}
+    if unsupported:
         warnings.append(f"Unsupported alert channel: {cfg.alert_channel}")
     if cfg.funding_source not in {"binance", "bybit", "both"}:
         warnings.append(f"Unsupported funding source: {cfg.funding_source}")
     if bool(cfg.telegram_bot_token) ^ bool(cfg.telegram_chat_id):
         warnings.append("Telegram is partially configured; set both token and chat id.")
-    if cfg.alert_channel in {"discord", "both"} and not cfg.discord_webhook_url:
+    if "discord" in channels and not cfg.discord_webhook_url:
         warnings.append("Discord is selected; set DISCORD_WEBHOOK_URL in the environment.")
+    if "slack" in channels and not cfg.slack_webhook_url:
+        warnings.append("Slack is selected; set SLACK_WEBHOOK_URL in the environment.")
     if cfg.coinglass_api_key:
         warnings.append("Coinglass key detected, but confscan does not use Coinglass by default.")
     return warnings

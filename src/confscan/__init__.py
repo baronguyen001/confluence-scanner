@@ -1,9 +1,11 @@
 """Public API for confluence-scanner."""
 
 from confscan.alert.discord import DiscordAlerter
+from confscan.alert.slack import SlackAlerter
 from confscan.alert.telegram import TelegramAlerter
 from confscan.backtest.engine import BacktestResult, Trade, run_backtest
 from confscan.backtest.metrics import Metrics
+from confscan.backtest.montecarlo import MonteCarloMethod, MonteCarloResult, run_monte_carlo
 from confscan.backtest.regime import RegimeMetrics, classify_regimes, metrics_by_regime
 from confscan.backtest.report import (
     BacktestReportSection,
@@ -17,6 +19,7 @@ from confscan.data.binance import funding_rate, klines, long_short_ratio, open_i
 from confscan.data.bybit import funding_rate as bybit_funding_rate
 from confscan.score.confluence import ConfluenceResult, ConfluenceScorer, LayerScore
 from confscan.signals.funding import funding_frame, funding_percentile
+from confscan.signals.orderflow import orderflow_components, orderflow_score
 from confscan.signals.ta import (
     adx,
     atr,
@@ -29,7 +32,7 @@ from confscan.signals.ta import (
 )
 from confscan.universe.loader import top_n_by_market_cap
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "__version__",
@@ -43,6 +46,8 @@ __all__ = [
     "detect_cross",
     "funding_percentile",
     "funding_frame",
+    "orderflow_components",
+    "orderflow_score",
     "bybit_funding_rate",
     "ConfluenceScorer",
     "ConfluenceResult",
@@ -62,6 +67,9 @@ __all__ = [
     "metrics_by_regime",
     "RegimeMetrics",
     "Metrics",
+    "MonteCarloMethod",
+    "MonteCarloResult",
+    "run_monte_carlo",
     "FoldReportRow",
     "RegimeReportRow",
     "BacktestReportSection",
@@ -73,4 +81,5 @@ __all__ = [
     "write_dashboard",
     "TelegramAlerter",
     "DiscordAlerter",
+    "SlackAlerter",
 ]

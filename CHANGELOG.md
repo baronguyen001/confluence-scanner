@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.0 - 2026-06-11
+
+- Added an optional public order-flow signal layer from free Binance futures endpoints for open-interest rank, long/short account ratio, and liquidation balance. The confluence layer ships with default weight `0.0`, so public scoring behavior is unchanged until a caller opts in.
+- Added Monte Carlo backtest robustness diagnostics via `confscan backtest --montecarlo N`, with deterministic `--montecarlo-seed`, trade-order shuffle, bootstrap simulation, and HTML report confidence-band tables.
+- Added Slack webhook alerts through `SLACK_WEBHOOK_URL`, plus `alert.channel` parsing for `telegram`, `discord`, `slack`, `all`, legacy `both`, and explicit channel combinations.
+- Kept public scoring defaults generic; no production weights, EMA tuning, stop-loss settings, alert secrets, or rejected-experiment figures are included.
+
 ## v0.3.0 - 2026-06-10
 
 - Added a second public funding-rate source (Bybit) normalized to the Binance funding-frame shape, with `data.funding_source = binance | bybit | both` selection (default `binance`, behavior unchanged) and a `both` mode that averages overlapping timestamps.

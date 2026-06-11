@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from confscan.config import Config, audit_config, load_config
+from confscan.config import Config, alert_channels, audit_config, load_config
 
 
 def test_load_config_yaml_and_env(tmp_path, monkeypatch) -> None:
@@ -39,6 +39,18 @@ def test_load_config_alert_channel_and_discord_env(tmp_path, monkeypatch) -> Non
 def test_audit_config_warns_for_selected_discord_without_webhook() -> None:
     warnings = audit_config(Config(symbols=["BTCUSDT"], alert_channel="discord"))
     assert any("Discord" in warning for warning in warnings)
+
+
+def test_alert_channel_combinations_and_slack_env(tmp_path, monkeypatch) -> None:
+    cfg_path = tmp_path / "config.yaml"
+    cfg_path.write_text("symbols: [btc]\nalert:\n  channel: telegram+slack\n", encoding="utf-8")
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://example.invalid/slack")
+
+    cfg = load_config(str(cfg_path), env_path=str(tmp_path / ".env"))
+
+    assert alert_channels(cfg.alert_channel) == {"telegram", "slack"}
+    assert cfg.slack_webhook_url == "https://example.invalid/slack"
+    assert not any("Slack" in warning for warning in audit_config(cfg))
 
 
 def test_funding_source_default_and_selection(tmp_path, monkeypatch) -> None:
