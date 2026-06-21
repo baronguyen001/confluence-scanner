@@ -186,3 +186,43 @@ def adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
     )
     dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
     return dx.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+
+
+def stochastic(
+    df: pd.DataFrame,
+    k_period: int = 14,
+    d_period: int = 3,
+) -> tuple[pd.Series, pd.Series]:
+    """Stochastic oscillator ``(%K, %D)`` on 0..100. Generic momentum input."""
+    high = df["high"].astype(float)
+    low = df["low"].astype(float)
+    close = df["close"].astype(float)
+    lowest = low.rolling(k_period, min_periods=k_period).min()
+    highest = high.rolling(k_period, min_periods=k_period).max()
+    span = (highest - lowest).replace(0, np.nan)
+    percent_k = 100 * (close - lowest) / span
+    percent_d = percent_k.rolling(d_period, min_periods=d_period).mean()
+    return percent_k, percent_d
+
+
+def obv(df: pd.DataFrame) -> pd.Series:
+    """On-Balance Volume: cumulative volume signed by the close-to-close change."""
+    close = df["close"].astype(float)
+    volume = df["volume"].astype(float)
+    direction = np.sign(close.diff().fillna(0.0))
+    return (direction * volume).cumsum()
+
+
+def mfi(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Money Flow Index on 0..100: a volume-weighted RSI-style oscillator."""
+    high = df["high"].astype(float)
+    low = df["low"].astype(float)
+    close = df["close"].astype(float)
+    volume = df["volume"].astype(float)
+    typical = (high + low + close) / 3.0
+    raw_flow = typical * volume
+    delta = typical.diff()
+    positive = raw_flow.where(delta > 0, 0.0).rolling(period, min_periods=period).sum()
+    negative = raw_flow.where(delta < 0, 0.0).rolling(period, min_periods=period).sum()
+    ratio = positive / negative.replace(0, np.nan)
+    return 100 - (100 / (1 + ratio))

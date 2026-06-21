@@ -28,11 +28,14 @@ from confscan.signals.ta import (
     ema,
     ema_cross_signal,
     macd,
+    mfi,
+    obv,
     rsi,
+    stochastic,
 )
 from confscan.universe.loader import top_n_by_market_cap
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "__version__",
@@ -42,6 +45,9 @@ __all__ = [
     "bollinger_bands",
     "atr",
     "adx",
+    "mfi",
+    "obv",
+    "stochastic",
     "ema_cross_signal",
     "detect_cross",
     "funding_percentile",

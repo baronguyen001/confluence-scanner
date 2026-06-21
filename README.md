@@ -41,7 +41,7 @@ print(score.to_dict())
 
 ## What's In The Box
 
-- Pure-pandas TA: EMA, RSI, MACD, Bollinger Bands, ATR, and ADX. No TA-Lib and no pandas-ta.
+- Pure-pandas TA: EMA, RSI, MACD, Bollinger Bands, ATR, ADX, Stochastic, OBV, and MFI. No TA-Lib and no pandas-ta.
 - Adaptive confluence scoring across TA, fundamentals, CEX flow, and on-chain layers.
 - Optional ADX/ATR confluence inputs with zero default weight, so shipped scoring behavior stays unchanged until you opt in.
 - Optional public order-flow confluence input for open interest, long/short ratio, and liquidation balance. It ships with zero default weight, so scoring behavior stays unchanged until you opt in.
@@ -110,11 +110,11 @@ The default is `0.00`, so public scoring is unchanged. Set your own weight only 
 
 ## Funding Source
 
-The CEX funding sub-score can read from Binance, Bybit, or an average of both. The default is `binance`, so shipped behavior is unchanged. Both sources normalize to the same `['fundingRate']` frame, so picking a source is a one-line config change:
+The CEX funding sub-score can read from Binance, Bybit, OKX, or an average of Binance+Bybit. The default is `binance`, so shipped behavior is unchanged. All sources normalize to the same `['fundingRate']` frame, so picking a source is a one-line config change:
 
 ```yaml
 data:
-  funding_source: both  # binance (default), bybit, or both
+  funding_source: both  # binance (default), bybit, okx, or both
 ```
 
 `both` averages overlapping timestamps and falls back to whichever venue returned data, which smooths over a single exchange's outage. You can also set `CONFSCAN_FUNDING_SOURCE` in the environment.

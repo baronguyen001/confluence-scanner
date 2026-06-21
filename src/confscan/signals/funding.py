@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from confscan.data import bybit
+from confscan.data import bybit, okx
 from confscan.data.binance import funding_rate
 
-FUNDING_SOURCES = ("binance", "bybit", "both")
+FUNDING_SOURCES = ("binance", "bybit", "okx", "both")
 
 __all__ = [
     "FUNDING_SOURCES",
@@ -43,6 +43,8 @@ def funding_frame(symbol: str, *, source: str = "binance", limit: int = 100) -> 
     source = (source or "binance").strip().lower()
     if source == "bybit":
         return bybit.funding_rate(symbol, limit=limit)
+    if source == "okx":
+        return okx.funding_rate(symbol, limit=limit)
     if source == "both":
         a = funding_rate(symbol, limit=limit)
         b = bybit.funding_rate(symbol, limit=limit)

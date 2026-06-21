@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.5.0 - 2026-06-21
+
+- Added three generic, textbook indicators to `confscan.signals.ta`: `stochastic`
+  (%K/%D), `obv` (on-balance volume), and `mfi` (money flow index). Pure pandas,
+  generic default periods — additional optional inputs, not a tuned edge.
+- Added OKX as a third independent funding-rate source (`confscan.data.okx`),
+  normalized to the same `['fundingRate']` frame as Binance/Bybit and selectable
+  via `data.funding_source = okx`. Default stays `binance`, so shipped behavior is
+  unchanged; fixtured tests, no live calls in CI.
+- Kept scoring defaults generic; no production weights, thresholds, EMA tuning,
+  or rejected-experiment figures added.
+
 ## v0.4.0 - 2026-06-11
 
 - Added an optional public order-flow signal layer from free Binance futures endpoints for open-interest rank, long/short account ratio, and liquidation balance. The confluence layer ships with default weight `0.0`, so public scoring behavior is unchanged until a caller opts in.
